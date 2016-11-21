@@ -461,12 +461,12 @@ if SERVER then
    function ENT:ShowC4Config(ply)
       -- show menu to player to configure or disarm us
       net.Start("TTT_C4Config")
-         net.WriteEntity(self)
+         net.WriteUInt(self:EntIndex(), 16)
       net.Send(ply)
    end
 
    local function ReceiveC4Config(ply, cmd, args)
-      if not (IsValid(ply) and ply:IsTerror() and #args == 2) then return end
+      if (not IsValid(ply)) or (not ply:IsTerror()) or (not ply:Alive()) or #args != 2 then return end
       local idx = tonumber(args[1])
       local time = tonumber(args[2])
 
@@ -486,24 +486,21 @@ if SERVER then
             LANG.Msg(ply, "c4_armed")
 
             bomb:Arm(ply, time)
-            hook.Call("TTTC4Arm", nil, bomb, ply)
          end
       end
 
    end
    concommand.Add("ttt_c4_config", ReceiveC4Config)
 
-   local function SendDisarmResult(ply, bomb, result)
-      hook.Call("TTTC4Disarm", nil, bomb, result, ply)
-
+   local function SendDisarmResult(ply, idx, result)
       net.Start("TTT_C4DisarmResult")
-         net.WriteEntity(bomb)
+         net.WriteUInt(idx, 15) -- it'll fit, trust me
          net.WriteBit(result) -- this way we can squeeze this bit into 16
       net.Send(ply)
    end
 
    local function ReceiveC4Disarm(ply, cmd, args)
-      if not (IsValid(ply) and ply:IsTerror() and #args == 2) then return end
+      if (not IsValid(ply)) or (not ply:IsTerror()) or (not ply:Alive()) or #args != 2 then return end
       local idx = tonumber(args[1])
       local wire = tonumber(args[2])
 
@@ -518,10 +515,10 @@ if SERVER then
 
             bomb:Disarm(ply)
 
-            -- only case with success net message
-            SendDisarmResult(ply, bomb, true)
+            -- only case with success umsg
+            SendDisarmResult(ply, idx, true)
          else
-            SendDisarmResult(ply, bomb, false)
+            SendDisarmResult(ply, idx, false)
 
             -- wrong wire = bomb goes boom
             bomb:FailedDisarm(ply)
@@ -532,21 +529,18 @@ if SERVER then
 
 
    local function ReceiveC4Pickup(ply, cmd, args)
-      if not (IsValid(ply) and ply:IsTerror() and #args == 1) then return end
+      if (not IsValid(ply)) or (not ply:IsTerror()) or (not ply:Alive()) or #args != 1 then return end
       local idx = tonumber(args[1])
 
       if not idx then return end
 
       local bomb = ents.GetByIndex(idx)
       if IsValid(bomb) and bomb.GetArmed and (not bomb:GetArmed()) then
-         if bomb:GetPos():Distance(ply:GetPos()) > 256 then
-            return
+         if bomb:GetPos():Distance(ply:GetPos()) > 256 then return
          elseif not ply:CanCarryType(WEAPON_EQUIP1) then
             LANG.Msg(ply, "c4_no_room")
          else
             local prints = bomb.fingerprints or {}
-
-            hook.Call("TTTC4Pickup", nil, bomb, ply)
 
             local wep = ply:Give("weapon_ttt_c4")
             if IsValid(wep) then
@@ -563,19 +557,17 @@ if SERVER then
 
 
    local function ReceiveC4Destroy(ply, cmd, args)
-      if not (IsValid(ply) and ply:IsTerror() and #args == 1) then return end
+      if (not IsValid(ply)) or (not ply:IsTerror()) or (not ply:Alive()) or #args != 1 then return end
       local idx = tonumber(args[1])
 
       if not idx then return end
 
       local bomb = ents.GetByIndex(idx)
       if IsValid(bomb) and (not bomb:GetArmed()) then
-         if bomb:GetPos():Distance(ply:GetPos()) > 256 then
-            return
+         if bomb:GetPos():Distance(ply:GetPos()) > 256 then return
          else
             -- spark to show onlookers we destroyed this bomb
             util.EquipmentDestroyed(bomb:GetPos())
-            hook.Call("TTTC4Destroyed", nil, bomb, ply)
 
             bomb:Remove()
          end
